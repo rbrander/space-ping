@@ -1,0 +1,16 @@
+{
+  "name": "space-ping",
+  "version": "1.0.0",
+  "description": "A game of space ships battling it out",
+  "main": "index.js",
+  "repository": "github:rbrander/space-ping.git",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "space",
+    "ping"
+  ],
+  "author": "Rob Brander",
+  "license": "ISC"
+}
