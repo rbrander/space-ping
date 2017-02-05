@@ -4,6 +4,7 @@ const RADS_PER_DEG = (Math.PI/180);
 const BULLET_VELOCITY = 20; // pixels per frame
 const BULLET_LENGTH = 10; // pixels
 const MAX_RADIANS = Math.PI * 2;
+const BULLET_STRENGTH = 1;
 const NUM_STARS = 255;
 const KEYS = {
   UP: '38',
@@ -25,7 +26,14 @@ const ship = {
   xVelocity: 0,
   yVelocity: 0,
 };
-
+const enemyShip = {
+  x: 600,
+  y: 400,
+  angle: 340,
+  shields: 50,
+  xVelocity: -1,
+  yVelocity: -2,
+};
 const stars = [];
 
 const imgTitle = new Image();
@@ -87,7 +95,7 @@ const drawLogo = (tick, tickStart, tickEnd) => {
   ctx.restore();
 }
 
-const drawBullets = (shipDetails, bullets) => {
+const drawBullets = (bullets) => {
   ctx.save();
 
   bullets.forEach(bullet => {
@@ -105,7 +113,10 @@ const drawBullets = (shipDetails, bullets) => {
   ctx.restore();
 }
 
+const isShipDead = (ship) => ship.shields <= 0;
+
 const drawShip = (shipDetails) => {
+  if (isShipDead(shipDetails)) return;
   ctx.save();
 
   // translate and rotate
@@ -146,7 +157,8 @@ const draw = (tick) => {
   drawStars();
 
   drawShip(ship);
-  drawBullets(ship, bullets);
+  drawShip(enemyShip);
+  drawBullets(bullets);
 
   drawLogo(tick, 700, 4000);
 };
@@ -196,8 +208,52 @@ const moveBullets = (bullets) => {
     .filter(removeBulletsOffScreen);
 };
 
+const removeHitBullets = (bullets, ships) => {
+  // for each bullet, check if it touches the any of the ships shields by radius
+  return bullets.filter(bullet => {
+    // bullet has x, y, and angle
+
+    const shipHit = ships.reduce((shipHit, ship) => {
+      if (shipHit) return shipHit;
+      // use pythagorean theorm to determine if a bullet is within a shields radius
+      const xDiff = ship.x - bullet.x;
+      const yDiff = ship.y - bullet.y;
+      const len = Math.sqrt(((xDiff * xDiff) + (yDiff * yDiff)));
+      const hitShip = (len <= ship.shields);
+      if (hitShip) {
+        // if in sheilds and the shields are > BULLET_STRENGTH, deduct BULLET_STRENGTH, else kill player
+        if (ship.shields > BULLET_STRENGTH + BULLET_LENGTH) {
+          ship.shields -= BULLET_STRENGTH;
+        } else {
+          ship.shields = 0;
+        }
+      }
+      return hitShip;
+    }, false);
+    // keep the bullet if it didn't hit a ship
+    return !shipHit;
+  });
+}
+
+const moveShip = (ship) => {
+  // move player according to velocity
+  ship.x += ship.xVelocity;
+  ship.y += ship.yVelocity;
+
+  // check ship bounds
+  if (ship.x < 0)
+    ship.x += canvas.width;
+  else if (ship.x > canvas.width)
+    ship.x -= canvas.width;
+  if (ship.y < 0)
+    ship.y += canvas.height;
+  else if (ship.y > canvas.height)
+    ship.y -= canvas.height;  
+};
+
 const update = (tick) => {
   bullets = moveBullets(bullets);
+  bullets = removeHitBullets(bullets, [enemyShip]);
 
   // process keys
   if (Object.keys(keys).length > 0) {
@@ -241,19 +297,8 @@ const update = (tick) => {
     }
   }
 
-  // move player according to velocity
-  ship.x += ship.xVelocity;
-  ship.y += ship.yVelocity;
-
-  // check ship bounds
-  if (ship.x < 0)
-    ship.x += canvas.width;
-  else if (ship.x > canvas.width)
-    ship.x -= canvas.width;
-  if (ship.y < 0)
-    ship.y += canvas.height;
-  else if (ship.y > canvas.height)
-    ship.y -= canvas.height;
+  moveShip(ship);
+  moveShip(enemyShip);
 };
 
 
