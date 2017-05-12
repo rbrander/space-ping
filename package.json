@@ -5,6 +5,7 @@
   "main": "index.js",
   "repository": "github:rbrander/space-ping.git",
   "scripts": {
+    "start": "http-server",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -12,5 +13,8 @@
     "ping"
   ],
   "author": "Rob Brander",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "http-server": "^0.9.0"
+  }
 }

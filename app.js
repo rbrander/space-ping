@@ -1,10 +1,11 @@
 // app.js
-
-const RADS_PER_DEG = (Math.PI/180);
+const RADS_PER_DEG = (Math.PI / 180);
 const BULLET_VELOCITY = 20; // pixels per frame
-const BULLET_LENGTH = 10; // pixels
-const MAX_RADIANS = Math.PI * 2;
 const BULLET_STRENGTH = 1;
+const THRUST_VELOCITY = 3; // how fast you move forward when you press up
+const ANGULAR_VELOCITY = 3; // how fast you can turn left/right
+const BULLET_LENGTH = 6; // pixels
+const MAX_RADIANS = (Math.PI * 2);
 const NUM_STARS = 255;
 const KEYS = {
   UP: '38',
@@ -63,7 +64,9 @@ const drawStars = () => {
 };
 
 const drawLogo = (tick, tickStart, tickEnd) => {
+  // check if image is loaded
   if (!imgTitleLoaded) return;
+  // check if time is within display bounds
   if ((tick < tickStart) || (tick > tickEnd)) return;
 
   ctx.save();
@@ -115,7 +118,17 @@ const drawBullets = (bullets) => {
 
 const isShipDead = (ship) => ship.shields <= 0;
 
-const drawShip = (shipDetails) => {
+const getShieldDiameter = (shieldStrength) => {
+  // short-circuit for dead ships
+  if (shieldStrength <= 0) return 0;
+
+
+  // since the longest part of the ship, from center, is 20px,
+  // the shield will not shrink below 25px
+  return shieldStrength <= 25 ? 25 : shieldStrength;
+};
+
+const drawShip = (shipDetails, isPlayer) => {
   if (isShipDead(shipDetails)) return;
   ctx.save();
 
@@ -125,7 +138,7 @@ const drawShip = (shipDetails) => {
   ctx.rotate(rotation);
 
   // draw a triangle
-  ctx.strokeStyle = 'lightgreen';
+  ctx.strokeStyle = isPlayer ? 'lightblue' : 'lightgreen';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, -20);
@@ -134,15 +147,19 @@ const drawShip = (shipDetails) => {
   ctx.lineTo(-10, 10);
   ctx.lineTo(0, -20);
   ctx.stroke();
-  ctx.fillStyle = 'darkgreen';
+  ctx.fillStyle = isPlayer ? 'darkblue' : 'darkgreen';
   ctx.fill();
 
   // draw the shields
-  ctx.strokeStyle = 'lightblue';
-  ctx.lineWidth = 3;
+  const shieldRadius = getShieldDiameter(shipDetails.shields);
+  const shieldGradient = ctx.createRadialGradient(0, 0, 20, 0, 0, shieldRadius);
+  shieldGradient.addColorStop(0, "transparent");
+  shieldGradient.addColorStop(1, "lightblue");
+
   ctx.beginPath();
-  ctx.arc(0, 0, shipDetails.shields, 0, MAX_RADIANS, true);
-  ctx.stroke();
+  ctx.arc(0, 0, shieldRadius, 0, MAX_RADIANS, true);
+  ctx.fillStyle = shieldGradient;
+  ctx.fill();
 
   ctx.rotate(-rotation);
   ctx.translate(-shipDetails.x, -shipDetails.y);
@@ -150,30 +167,46 @@ const drawShip = (shipDetails) => {
   ctx.restore();
 };
 
+let lastTick = 0;
+const drawStats = (tick, ship, enemyShip) => {
+  ctx.save();
+
+  const fps = (1000/(tick-lastTick));
+
+  ctx.font = '16px Arial';
+  ctx.fillStyle = 'white';
+  ctx.textBaseline = 'top';
+  ctx.fillText('FPS: ' + fps.toString(), 20, 20);
+  ctx.fillText('Your Shields: ' + ship.shields.toString(), 20, 50);
+  ctx.fillText('Enemy Shields: ' + enemyShip.shields.toString(), 20, 66);
+  ctx.fillText(`(xVel, yVel): (${ship.xVelocity}, ${ship.yVelocity})`, 20, 110);
+
+  lastTick = tick;
+
+  ctx.restore();
+}
+
 const draw = (tick) => {
   ctx.fillStyle = 'black';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   drawStars();
 
-  drawShip(ship);
-  drawShip(enemyShip);
+  drawShip(ship, true);
+  drawShip(enemyShip, false);
   drawBullets(bullets);
 
-  drawLogo(tick, 700, 4000);
+  drawLogo(tick, 700, 7000);
+  drawStats(tick, ship, enemyShip);
 };
 /**************************************/
 
 const keys = {};
 const onKeyDown = (e) => {
-  if (e.which == KEYS.SPACE)
-    e.preventDefault();
   keys[e.which] = true;
 };
 
 const onKeyUp = (e) => {
-  if (e.which == KEYS.SPACE)
-    e.preventDefault();
   delete keys[e.which];
 }
 
@@ -248,42 +281,35 @@ const moveShip = (ship) => {
   if (ship.y < 0)
     ship.y += canvas.height;
   else if (ship.y > canvas.height)
-    ship.y -= canvas.height;  
+    ship.y -= canvas.height;
 };
 
-const update = (tick) => {
-  bullets = moveBullets(bullets);
-  bullets = removeHitBullets(bullets, [enemyShip]);
-
-  // process keys
+const processKeys = (keys) => {
   if (Object.keys(keys).length > 0) {
-    const angularVelocity = 3;
-    const thrustVelocity = 5;
     for (key in keys) {
       switch (key) {
         case KEYS.UP:
           // add thrust
           const angle = RADS_PER_DEG * (ship.angle - 90);
-          const xVelocity = Math.cos(angle) * thrustVelocity;
-          const yVelocity = Math.sin(angle) * thrustVelocity;
-          /*
-          ship.x += xVelocity;
-          ship.y += yVelocity;
-          */
+          const xVelocity = Math.cos(angle) * THRUST_VELOCITY;
+          const yVelocity = Math.sin(angle) * THRUST_VELOCITY;
           ship.xVelocity += xVelocity;
           ship.yVelocity += yVelocity;
           delete keys[KEYS.UP];
           break;
         case KEYS.DOWN:
           // stop thrust and/or reverse thrust
+          ship.xVelocity = 0;
+          ship.yVelocity = 0;
+          delete keys[KEYS.DOWN];
           break;
         case KEYS.LEFT:
           // rotate counter clock-wise
-          ship.angle -= angularVelocity;
+          ship.angle -= ANGULAR_VELOCITY;
           break;
         case KEYS.RIGHT:
           // rotate clock-wise
-          ship.angle += angularVelocity;
+          ship.angle += ANGULAR_VELOCITY;
           break;
         case KEYS.SPACE:
           // fire a bullet
@@ -296,9 +322,37 @@ const update = (tick) => {
       }
     }
   }
+};
+
+const collisionDetection = (firstShip, secondShip) => {
+  // short-circuit if one of them is dead
+  if (isShipDead(firstShip) || isShipDead(secondShip)) return;
+  // the closest the two ships are permitted to be is the sum of their radii
+  const hitDist = getShieldDiameter(firstShip.shields) + getShieldDiameter(secondShip.shields);
+  const xDiff = (firstShip.x - secondShip.x);
+  const yDiff = (firstShip.y - secondShip.y);
+  const dist = ~~Math.sqrt((xDiff * xDiff) + (yDiff * yDiff));
+  if (dist <= hitDist) {
+    // it's a hit! invert the velocity a bit
+    firstShip.xVelocity *= -0.4;
+    firstShip.yVelocity *= -0.6;
+    secondShip.xVelocity *= -0.6;
+    secondShip.yVelocity *= -0.4;
+    moveShip(firstShip);
+    moveShip(secondShip);
+  }
+};
+
+const update = (tick) => {
+  bullets = moveBullets(bullets);
+  bullets = removeHitBullets(bullets, [enemyShip]);
+
+  processKeys(keys);
+  collisionDetection(ship, enemyShip);
 
   moveShip(ship);
   moveShip(enemyShip);
+
 };
 
 
@@ -321,9 +375,9 @@ const createStars = () => {
 }
 
 (function(){
-  console.log('Space Ping');
-  document.addEventListener('keydown', onKeyDown, false);
-  document.addEventListener('keyup', onKeyUp, false);
+  console.info('Space Ping');
+  document.body.addEventListener('keydown', onKeyDown, false);
+  document.body.addEventListener('keyup', onKeyUp, false);
   window.addEventListener('resize', onResize, false);
   onResize();
   createStars();
